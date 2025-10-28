@@ -61,6 +61,8 @@ def run_schedule():
     schedule.every().day.at("03:15").do(job_alert)
     schedule.every().day.at("09:00").do(job_alert)
     schedule.every().day.at("16:20").do(job_alert)
+    schedule.every().day.at("18:00").do(job_alert)
+    schedule.every().day.at("21:20").do(job_alert)
     schedule.every().day.at("23:00").do(job_alert)
     # Health ping hourly
     schedule.every().hour.do(lambda: requests.get("https://render.com"))
@@ -81,3 +83,4 @@ def index():
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port)
+
