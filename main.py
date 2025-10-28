@@ -24,7 +24,6 @@ SEARCH_LINKS = {
         "https://www.morganhunt.com/jobs/facilities-management",
         "https://www.gravitasgroup.com/job-search",
         "https://www.jobsatamazon.co.uk/app#/jobSearch"
-        
     ]
 }
 
@@ -32,7 +31,10 @@ def send_message(text):
     """Send Telegram message."""
     url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
     payload = {"chat_id": CHAT_ID, "text": text, "parse_mode": "HTML"}
-    requests.post(url, data=payload)
+    try:
+        requests.post(url, data=payload)
+    except Exception as e:
+        print("Error sending message:", e)
 
 def job_alert():
     """Send job alert summary."""
@@ -45,13 +47,24 @@ def job_alert():
         msg += "\n"
     send_message(msg)
 
-# Schedule twice a day (UK time)
+# 🩺 HEALTH PING: keeps worker alive by sending a silent ping every hour
+def health_ping():
+    try:
+        requests.get("https://render.com")  # lightweight request
+        print(f"[{datetime.now().strftime('%H:%M:%S')}] Health ping sent ✅")
+    except Exception as e:
+        print("Ping failed:", e)
+
+# Schedule alerts (twice per day)
 schedule.every().day.at("03:15").do(job_alert)
 schedule.every().day.at("09:00").do(job_alert)
 schedule.every().day.at("16:20").do(job_alert)
-schedule.every().day.at("23:00").do(job_alert)
+schedule.every().day.at("23:10").do(job_alert)
 
-print("📡 Bot scheduler started...")
+# Schedule health ping (every hour)
+schedule.every().hour.do(health_ping)
+
+print("📡 Bot scheduler with health ping started...")
 while True:
     schedule.run_pending()
     time.sleep(60)
