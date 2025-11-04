@@ -136,7 +136,7 @@ def job_loop():
 # === FLASK ROUTE (Render needs this port open) ===
 @app.route("/")
 def home():
-    livecheck = "✅ Amazon Job Bot is running (Online version)"
+    livecheck = "✅ Amazon Job Bot is running (Online version) ✅"
     send_telegram_message(livecheck)
     return "✅ Amazon Job Bot is running (Online version)"
 
@@ -147,3 +147,4 @@ if __name__ == "__main__":
     send_telegram_message(startcheck)
     threading.Thread(target=job_loop, daemon=True).start()
     app.run(host="0.0.0.0", port=int(os.getenv("PORT", 5000)))
+
