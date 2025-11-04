@@ -1,138 +1,137 @@
+import requests
 import json
-import os
 import time
 import threading
-import requests
-import schedule
 from flask import Flask
-from playwright.sync_api import sync_playwright
-from telegram import Bot
+import asyncio
+from playwright.async_api import async_playwright
 
-# === Config ===
+# === CONFIGURATION ===
 GRAPHQL_URL = "https://qy64m4juabaffl7tjakii4gdoa.appsync-api.eu-west-1.amazonaws.com/graphql"
-TELEGRAM_TOKEN = "8214392800:AAGrRksRKpAD8Oa8H4aByo5XKSwc_9SM9Bo"
-CHAT_ID = "7943617436"
+JOB_PAGE_URL = "https://www.jobsatamazon.co.uk/app#/jobSearch?query=Warehouse%20Operative&locale=en-GB"
+
+# Telegram bot credentials (set as ENV vars on Render)
+import os
+TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+CHAT_ID = os.getenv("CHAT_ID")
+
+# Track jobs already sent
+seen_jobs = set()
 
 app = Flask(__name__)
 
-QUERY = {
-    "query": """query searchJobCardsByLocation($searchJobRequest: SearchJobRequest!) {
-      searchJobCardsByLocation(searchJobRequest: $searchJobRequest) {
-        jobCards {
-          jobId
-          jobTitle
-          locationName
-          city
-          totalPayRateMax
-          totalPayRateMaxL10N
-          employmentType
-        }
-      }
-    }""",
-    "variables": {
-        "searchJobRequest": {
-            "locale": "en-GB",
-            "country": "United Kingdom",
-            "keyWords": "Warehouse Operative",
-            "equalFilters": [],
-            "containFilters": [{"key": "isPrivateSchedule", "val": ["true","false"]}],
-            "rangeFilters": [],
-            "orFilters": [],
-            "dateFilters": [],
-            "sorters": [{"fieldName": "totalPayRateMax", "ascending": "false"}],
-            "pageSize": 20,
-            "consolidateSchedule": True
-        }
-    }
-}
+# === TOKEN FETCH USING PLAYWRIGHT (headless browser) ===
+async def get_auth_token():
+    try:
+        async with async_playwright() as p:
+            browser = await p.chromium.launch(headless=True)
+            page = await browser.new_page()
+            await page.goto(JOB_PAGE_URL, wait_until="load")
+            cookies = await page.context.cookies()
+            await browser.close()
 
+            for cookie in cookies:
+                if "session" in cookie["name"].lower():
+                    print(f"✅ Session cookie found: {cookie['name']}")
+                    return f"Bearer {cookie['value']}"
+    except Exception as e:
+        print(f"❌ Playwright token fetch failed: {e}")
+    return None
 
-def get_auth_token():
-    """Grab session token from Amazon Jobs page."""
-    with sync_playwright() as p:
-        browser = p.chromium.launch(headless=True)
-        page = browser.new_page()
-        page.goto("https://www.jobsatamazon.co.uk/app#/jobSearch?query=Warehouse%20Operative&locale=en-GB",
-                  wait_until="networkidle")
-        cookies = page.context.cookies()
-        browser.close()
+# === TELEGRAM ALERT ===
+def send_telegram_message(message):
+    try:
+        url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
+        payload = {"chat_id": CHAT_ID, "text": message, "parse_mode": "Markdown"}
+        requests.post(url, data=payload)
+    except Exception as e:
+        print(f"⚠️ Telegram send error: {e}")
 
-        for c in cookies:
-            if "Session" in c.get("value", ""):
-                print("✅ AUTH_TOKEN found.")
-                return f"Bearer {c['value']}"
-        print("⚠️ AUTH_TOKEN not found.")
-        return None
-
-
+# === JOB FETCH FUNCTION ===
 def fetch_jobs(auth_token):
-    headers = {
-        "authorization": auth_token,
-        "content-type": "application/json",
-        "origin": "https://www.jobsatamazon.co.uk",
-        "accept": "text/html",
-        "referer": "https://www.jobsatamazon.co.uk/",
-        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
+    payload = {
+        "operationName": "searchJobCardsByLocation",
+        "variables": {
+            "searchJobRequest": {
+                "locale": "en-GB",
+                "country": "United Kingdom",
+                "keyWords": "Warehouse Operative",
+                "equalFilters": [],
+                "containFilters": [{"key": "isPrivateSchedule", "val": ["true", "false"]}],
+                "rangeFilters": [],
+                "orFilters": [],
+                "dateFilters": [],
+                "sorters": [{"fieldName": "totalPayRateMax", "ascending": "false"}],
+                "pageSize": 20,
+                "consolidateSchedule": True
+            }
+        },
+        "query": """
+        query searchJobCardsByLocation($searchJobRequest: SearchJobRequest!) {
+          searchJobCardsByLocation(searchJobRequest: $searchJobRequest) {
+            jobCards {
+              jobId
+              jobTitle
+              city
+              totalPayRateMax
+              locationName
+              totalPayRateMaxL10N
+              employmentType
+            }
+          }
+        }
+        """
     }
-    print("📡 Fetching jobs...")
-    fetchingjobs = "📡 Fetching jobs..."
-    send_telegram_message(fetchingjobs)
-    r = requests.post(GRAPHQL_URL, headers=headers, data=json.dumps(QUERY))
-    return r.json()
 
+    headers = {
+        "Authorization": auth_token,
+        "Content-Type": "application/json",
+        "Origin": "https://www.jobsatamazon.co.uk",
+        "Referer": "https://www.jobsatamazon.co.uk/",
+        "User-Agent": "Mozilla/5.0"
+    }
 
-def send_telegram_message(text):
-    if not TELEGRAM_TOKEN or not CHAT_ID:
-        print("⚠️ Telegram not configured.")
-        return
-    bot = Bot(token=TELEGRAM_TOKEN)
-    bot.send_message(chat_id=CHAT_ID, text=text)
+    try:
+        response = requests.post(GRAPHQL_URL, headers=headers, json=payload)
+        if response.status_code == 200:
+            data = response.json()
+            job_cards = data.get("data", {}).get("searchJobCardsByLocation", {}).get("jobCards", [])
+            print(f"📦 Found {len(job_cards)} jobs.")
 
+            for job in job_cards:
+                job_id = job.get("jobId")
+                if job_id not in seen_jobs:
+                    seen_jobs.add(job_id)
+                    title = job.get("jobTitle")
+                    city = job.get("city")
+                    pay = job.get("totalPayRateMax")
+                    msg = f"💼 *{title}* in {city}\n💰 Pay: £{pay}/hr\n🔗 https://www.jobsatamazon.co.uk/app#/jobDetail/{job_id}"
+                    print("🔔 New job found:", title)
+                    send_telegram_message(msg)
+        else:
+            print("⚠️ GraphQL request failed:", response.status_code, response.text)
+    except Exception as e:
+        print("⚠️ Fetch error:", e)
 
-def job_runner():
-    """Fetch jobs and send top 5 to Telegram."""
-    token = get_auth_token()
-    if not token:
-        print("❌ No token, skipping.")
-        return
-    data = fetch_jobs(token)
-    jobs = data.get("data", {}).get("searchJobCardsByLocation", {}).get("jobCards", [])
-    if not jobs:
-        print("⚠️ No jobs found.")
-        nojobs = "⚠️ No jobs found."
-        send_telegram_message(nojobs)
-        return
-
-    msg = "🧭 *Latest Amazon Jobs (Sheffield)*\n\n"
-    for j in jobs[:5]:
-        msg += f"🏷️ {j['jobTitle']} — {j['locationName']}\n💷 {j.get('totalPayRateMaxL10N','N/A')}\n\n"
-
-    print(msg)
-    send_telegram_message(msg)
-
-
-# === Scheduler Loop ===
-def scheduler_loop():
-    schedule.every(1).hours.do(job_runner)
-    job_runner()  # run immediately
+# === BACKGROUND JOB LOOP ===
+def job_loop():
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
     while True:
-        schedule.run_pending()
-        time.sleep(60)
+        print("⏳ Running scheduled job check...")
+        token = loop.run_until_complete(get_auth_token())
+        if token:
+            fetch_jobs(token)
+        else:
+            print("⚠️ Could not get session token.")
+        time.sleep(3600)  # every hour
 
-
-# === Flask Web Service (bind port for Render) ===
+# === FLASK ROUTE (Render needs this port open) ===
 @app.route("/")
 def home():
-    return "✅ Amazon Job Bot is running (Online).."
-    livecheck = "✅ Amazon Job Bot is running (Online)."
-    send_telegram_message(livecheck)
+    return "✅ Amazon Job Bot is running online."
 
-
+# === START EVERYTHING ===
 if __name__ == "__main__":
-    threading.Thread(target=scheduler_loop, daemon=True).start()
-    port = int(os.getenv("PORT", 5000))
-    app.run(host="0.0.0.0", port=port)
-    send_telegram_message(port)
-
-
-
+    threading.Thread(target=job_loop, daemon=True).start()
+    app.run(host="0.0.0.0", port=int(os.getenv("PORT", 5000)))
