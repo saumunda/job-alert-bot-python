@@ -34,6 +34,8 @@ async def get_auth_token():
             for cookie in cookies:
                 if "session" in cookie["name"].lower():
                     print(f"✅ Session cookie found: {cookie['name']}")
+                    cokkiecheck = f"✅ Session cookie found: {cookie['name']}"
+                    send_telegram_message(cokkiecheck)
                     return f"Bearer {cookie['value']}"
     except Exception as e:
         print(f"❌ Playwright token fetch failed: {e}")
@@ -89,7 +91,7 @@ def fetch_jobs(auth_token):
         "Content-Type": "application/json",
         "Origin": "https://www.jobsatamazon.co.uk",
         "Referer": "https://www.jobsatamazon.co.uk/",
-        "User-Agent": "Mozilla/5.0"
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
     }
 
     try:
@@ -121,8 +123,8 @@ def job_loop():
     while True:
         print("⏳ Running scheduled job check...")
         jobcheck = "⏳ Running scheduled job check..."
-        send_telegram_message(jobcheck)
         token = loop.run_until_complete(get_auth_token())
+        send_telegram_message(jobcheck)
         if token:
             fetch_jobs(token)
         else:
@@ -134,9 +136,9 @@ def job_loop():
 # === FLASK ROUTE (Render needs this port open) ===
 @app.route("/")
 def home():
-    livecheck = "✅ Amazon Job Bot is running (Online version).."
+    livecheck = "✅ Amazon Job Bot is running (Online version)"
     send_telegram_message(livecheck)
-    return "✅ Amazon Job Bot is running (Online version).."
+    return "✅ Amazon Job Bot is running (Online version)"
 
 
 # === START EVERYTHING ===
