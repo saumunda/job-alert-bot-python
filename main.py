@@ -14,8 +14,8 @@ REFRESH_INTERVAL = int(os.getenv("REFRESH_INTERVAL", 3600))  # seconds
 WAIT_TIME_MS = int(os.getenv("WAIT_TIME_MS", 5000))           # ms
 
 # Telegram Config
-TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "YOUR_TELEGRAM_BOT_TOKEN")
-TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "YOUR_TELEGRAM_CHAT_ID")
+TELEGRAM_BOT_TOKEN = "8214392800:AAGrRksRKpAD8Oa8H4aByo5XKSwc_9SM9Bo"
+TELEGRAM_CHAT_ID = "7943617436"
 
 # GraphQL Endpoint
 GRAPHQL_URL = "https://qy64m4juabaffl7tjakii4gdoa.appsync-api.eu-west-1.amazonaws.com/graphql"
@@ -136,7 +136,7 @@ def run_bot():
             print("No new jobs found.")
 
         print(f"\n⏳ Waiting {REFRESH_INTERVAL/60:.0f} minutes before next check...\n")
-        time.sleep(REFRESH_INTERVAL)
+        time.sleep(REFRESH_INTERVAL)  # loop without schedule module
 
 # ------------------ FLASK APP FOR RENDER ------------------
 app = Flask(__name__)
