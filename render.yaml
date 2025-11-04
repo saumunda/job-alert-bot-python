@@ -1,5 +1,5 @@
 services:
-  - type: web
+  - type: worker
     name: job-alert-bot-python
     env: python
     buildCommand: |
