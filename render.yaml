@@ -3,9 +3,10 @@ services:
     name: job-alert-bot
     env: python
     buildCommand: pip install -r requirements.txt
-    startCommand: python main.py
+    startCommand: python main2.py
     envVars:
       - key: BOT_TOKEN
         sync: false
       - key: CHAT_ID
+
         sync: false
