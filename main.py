@@ -12,8 +12,9 @@ JOB_PAGE_URL = "https://www.jobsatamazon.co.uk/app#/jobSearch?query=Warehouse%20
 
 # Telegram bot credentials (set as ENV vars on Render)
 import os
-TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
-CHAT_ID = os.getenv("CHAT_ID")
+TELEGRAM_BOT_TOKEN = "8214392800:AAGrRksRKpAD8Oa8H4aByo5XKSwc_9SM9Bo"
+CHAT_ID = "7943617436"
+
 
 # Track jobs already sent
 seen_jobs = set()
@@ -119,19 +120,28 @@ def job_loop():
     asyncio.set_event_loop(loop)
     while True:
         print("⏳ Running scheduled job check...")
+        jobcheck = "⏳ Running scheduled job check..."
+        send_telegram_message(jobcheck)
         token = loop.run_until_complete(get_auth_token())
         if token:
             fetch_jobs(token)
         else:
             print("⚠️ Could not get session token.")
+            erorcheck = "⚠️ Could not get session token."
+            send_telegram_message(erorcheck)
         time.sleep(3600)  # every hour
 
 # === FLASK ROUTE (Render needs this port open) ===
 @app.route("/")
 def home():
-    return "✅ Amazon Job Bot is running online."
+    livecheck = "✅ Amazon Job Bot is running (Online version).."
+    send_telegram_message(livecheck)
+    return "✅ Amazon Job Bot is running (Online version).."
+
 
 # === START EVERYTHING ===
 if __name__ == "__main__":
+    startcheck = "✅ === START EVERYTHING === ✅"
+    send_telegram_message(startcheck)
     threading.Thread(target=job_loop, daemon=True).start()
     app.run(host="0.0.0.0", port=int(os.getenv("PORT", 5000)))
