@@ -123,7 +123,7 @@ def scheduler_loop():
 # === Flask Web Service (bind port for Render) ===
 @app.route("/")
 def home():
-    return "✅ Amazon Job Bot is running."
+    return "✅ Amazon Job Bot is running (Online).."
     livecheck = "✅ Amazon Job Bot is running (Online)."
     send_telegram_message(livecheck)
 
@@ -133,4 +133,5 @@ if __name__ == "__main__":
     port = int(os.getenv("PORT", 5000))
     app.run(host="0.0.0.0", port=port)
     send_telegram_message(port)
+
 
