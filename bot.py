@@ -109,6 +109,8 @@ def fetch_jobs(auth_token):
 
 if __name__ == "__main__":
     while True:
+        port = int(os.getenv("PORT", 5000))
+        app.run(host="0.0.0.0", port=port)
         livecheck = "✅ Amazon Job Bot is running (Offline).."
         send_telegram_message(livecheck)
         token = get_auth_token()
