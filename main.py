@@ -8,10 +8,10 @@ from flask import Flask
 from playwright.sync_api import sync_playwright
 from telegram import Bot
 
-# === Configuration ===
+# === Config ===
 GRAPHQL_URL = "https://qy64m4juabaffl7tjakii4gdoa.appsync-api.eu-west-1.amazonaws.com/graphql"
-TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")  # add in Render Dashboard
-CHAT_ID = os.getenv("CHAT_ID")                # your Telegram chat ID
+TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")  # Render Env
+CHAT_ID = os.getenv("CHAT_ID")                # Render Env
 
 app = Flask(__name__)
 
@@ -23,6 +23,7 @@ QUERY = {
           jobTitle
           locationName
           city
+          totalPayRateMax
           totalPayRateMaxL10N
           employmentType
         }
@@ -32,9 +33,9 @@ QUERY = {
         "searchJobRequest": {
             "locale": "en-GB",
             "country": "United Kingdom",
-            "keyWords": "Sheffield",
+            "keyWords": "Warehouse Operative",
             "equalFilters": [],
-            "containFilters": [{"key": "isPrivateSchedule", "val": ["true", "false"]}],
+            "containFilters": [{"key": "isPrivateSchedule", "val": ["true","false"]}],
             "rangeFilters": [],
             "orFilters": [],
             "dateFilters": [],
@@ -47,11 +48,12 @@ QUERY = {
 
 
 def get_auth_token():
-    """Open Amazon jobs site silently and get session cookie."""
+    """Grab session token from Amazon Jobs page."""
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
         page = browser.new_page()
-        page.goto("https://www.jobsatamazon.co.uk/app#/jobSearch?query=Sheffield&locale=en-GB", wait_until="networkidle")
+        page.goto("https://www.jobsatamazon.co.uk/app#/jobSearch?query=Warehouse%20Operative&locale=en-GB",
+                  wait_until="networkidle")
         cookies = page.context.cookies()
         browser.close()
 
@@ -64,7 +66,6 @@ def get_auth_token():
 
 
 def fetch_jobs(auth_token):
-    """Run the GraphQL query using the live token."""
     headers = {
         "authorization": auth_token,
         "content-type": "application/json",
@@ -72,8 +73,9 @@ def fetch_jobs(auth_token):
         "referer": "https://www.jobsatamazon.co.uk/",
         "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
     }
-
     print("📡 Fetching jobs...")
+    fetchingjobs = "📡 Fetching jobs..."
+    send_telegram_message(fetchingjobs)
     r = requests.post(GRAPHQL_URL, headers=headers, data=json.dumps(QUERY))
     return r.json()
 
@@ -87,26 +89,28 @@ def send_telegram_message(text):
 
 
 def job_runner():
-    """Main job: fetch & send jobs every hour."""
+    """Fetch jobs and send top 5 to Telegram."""
     token = get_auth_token()
     if not token:
-        print("❌ No token found, skipping.")
+        print("❌ No token, skipping.")
         return
     data = fetch_jobs(token)
     jobs = data.get("data", {}).get("searchJobCardsByLocation", {}).get("jobCards", [])
     if not jobs:
         print("⚠️ No jobs found.")
+        nojobs = "⚠️ No jobs found."
+        send_telegram_message(nojobs)
         return
 
-    message = "🧭 *Latest Amazon Jobs in Sheffield:*\n\n"
-    for j in jobs[:5]:  # send top 5
-        message += f"🏷️ {j['jobTitle']} — {j['locationName']}\n💷 {j.get('totalPayRateMaxL10N', 'N/A')}\n\n"
+    msg = "🧭 *Latest Amazon Jobs (Sheffield)*\n\n"
+    for j in jobs[:5]:
+        msg += f"🏷️ {j['jobTitle']} — {j['locationName']}\n💷 {j.get('totalPayRateMaxL10N','N/A')}\n\n"
 
-    print(message)
-    send_telegram_message(message)
+    print(msg)
+    send_telegram_message(msg)
 
 
-# === Scheduler ===
+# === Scheduler Loop ===
 def scheduler_loop():
     schedule.every(1).hours.do(job_runner)
     job_runner()  # run immediately
@@ -115,16 +119,16 @@ def scheduler_loop():
         time.sleep(60)
 
 
-# === Flask Web Service (for Render port binding) ===
+# === Flask Web Service (bind port for Render) ===
 @app.route("/")
 def home():
     return "✅ Amazon Job Bot is running."
+    livecheck = "✅ Amazon Job Bot is running (Online)."
+    send_telegram_message(livecheck)
 
 
 if __name__ == "__main__":
-    # Start background scheduler
     threading.Thread(target=scheduler_loop, daemon=True).start()
-
-    # Bind to Render port
     port = int(os.getenv("PORT", 5000))
     app.run(host="0.0.0.0", port=port)
+    send_telegram_message(port)
