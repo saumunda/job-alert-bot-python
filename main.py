@@ -1,17 +1,19 @@
-import requests
 import json
-import time
-import schedule
 import os
-from datetime import datetime
+import time
+import threading
+import requests
+import schedule
+from flask import Flask
+from playwright.sync_api import sync_playwright
 from telegram import Bot
 
-# --- CONFIG ---
-AUTH_TOKEN = os.getenv("AUTH_TOKEN")  # Set in Render Environment
-TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
-CHAT_ID = os.getenv("CHAT_ID")
-
+# === Configuration ===
 GRAPHQL_URL = "https://qy64m4juabaffl7tjakii4gdoa.appsync-api.eu-west-1.amazonaws.com/graphql"
+TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")  # add in Render Dashboard
+CHAT_ID = os.getenv("CHAT_ID")                # your Telegram chat ID
+
+app = Flask(__name__)
 
 QUERY = {
     "query": """query searchJobCardsByLocation($searchJobRequest: SearchJobRequest!) {
@@ -19,10 +21,9 @@ QUERY = {
         jobCards {
           jobId
           jobTitle
-          city
-          state
-          totalPayRateMaxL10N
           locationName
+          city
+          totalPayRateMaxL10N
           employmentType
         }
       }
@@ -38,69 +39,92 @@ QUERY = {
             "orFilters": [],
             "dateFilters": [],
             "sorters": [{"fieldName": "totalPayRateMax", "ascending": "false"}],
-            "pageSize": 50,
+            "pageSize": 20,
             "consolidateSchedule": True
         }
     }
 }
 
 
-def fetch_jobs():
+def get_auth_token():
+    """Open Amazon jobs site silently and get session cookie."""
+    with sync_playwright() as p:
+        browser = p.chromium.launch(headless=True)
+        page = browser.new_page()
+        page.goto("https://www.jobsatamazon.co.uk/app#/jobSearch?query=Sheffield&locale=en-GB", wait_until="networkidle")
+        cookies = page.context.cookies()
+        browser.close()
+
+        for c in cookies:
+            if "Session" in c.get("value", ""):
+                print("✅ AUTH_TOKEN found.")
+                return f"Bearer {c['value']}"
+        print("⚠️ AUTH_TOKEN not found.")
+        return None
+
+
+def fetch_jobs(auth_token):
+    """Run the GraphQL query using the live token."""
     headers = {
-        'authorization': AUTH_TOKEN,
-        'content-type': 'application/json',
-        'origin': 'https://www.jobsatamazon.co.uk',
-        'referer': 'https://www.jobsatamazon.co.uk/',
-        'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'
+        "authorization": auth_token,
+        "content-type": "application/json",
+        "origin": "https://www.jobsatamazon.co.uk",
+        "referer": "https://www.jobsatamazon.co.uk/",
+        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
     }
 
-    try:
-        response = requests.post(GRAPHQL_URL, headers=headers, data=json.dumps(QUERY))
-        data = response.json()
-
-        if "errors" in data:
-            print(f"⚠️ GraphQL Error: {data['errors']}")
-            return []
-
-        jobs = data['data']['searchJobCardsByLocation']['jobCards']
-        print(f"[{datetime.now()}] ✅ Fetched {len(jobs)} jobs.")
-        return jobs
-
-    except Exception as e:
-        print(f"❌ Request failed: {e}")
-        return []
+    print("📡 Fetching jobs...")
+    r = requests.post(GRAPHQL_URL, headers=headers, data=json.dumps(QUERY))
+    return r.json()
 
 
-def send_to_telegram(jobs):
+def send_telegram_message(text):
     if not TELEGRAM_TOKEN or not CHAT_ID:
-        print("⚠️ Telegram config missing.")
+        print("⚠️ Telegram not configured.")
         return
-
     bot = Bot(token=TELEGRAM_TOKEN)
+    bot.send_message(chat_id=CHAT_ID, text=text)
+
+
+def job_runner():
+    """Main job: fetch & send jobs every hour."""
+    token = get_auth_token()
+    if not token:
+        print("❌ No token found, skipping.")
+        return
+    data = fetch_jobs(token)
+    jobs = data.get("data", {}).get("searchJobCardsByLocation", {}).get("jobCards", [])
     if not jobs:
-        bot.send_message(chat_id=CHAT_ID, text="No new jobs found.")
+        print("⚠️ No jobs found.")
         return
 
-    msg = "📢 *Amazon Jobs (Sheffield)*\n\n"
-    for job in jobs[:5]:  # top 5
-        msg += f"🧾 *{job['jobTitle']}*\n📍 {job['locationName']}\n💷 {job['totalPayRateMaxL10N']}\n\n"
+    message = "🧭 *Latest Amazon Jobs in Sheffield:*\n\n"
+    for j in jobs[:5]:  # send top 5
+        message += f"🏷️ {j['jobTitle']} — {j['locationName']}\n💷 {j.get('totalPayRateMaxL10N', 'N/A')}\n\n"
 
-    bot.send_message(chat_id=CHAT_ID, text=msg, parse_mode="Markdown")
-
-
-def main_job():
-    print("🔁 Running scheduled job fetch...")
-    jobs = fetch_jobs()
-    send_to_telegram(jobs)
-    print("✅ Job cycle complete.\n")
+    print(message)
+    send_telegram_message(message)
 
 
-# Schedule every hour
-schedule.every(1).hours.do(main_job)
+# === Scheduler ===
+def scheduler_loop():
+    schedule.every(1).hours.do(job_runner)
+    job_runner()  # run immediately
+    while True:
+        schedule.run_pending()
+        time.sleep(60)
 
-# Run immediately on start
-main_job()
 
-while True:
-    schedule.run_pending()
-    time.sleep(30)
+# === Flask Web Service (for Render port binding) ===
+@app.route("/")
+def home():
+    return "✅ Amazon Job Bot is running."
+
+
+if __name__ == "__main__":
+    # Start background scheduler
+    threading.Thread(target=scheduler_loop, daemon=True).start()
+
+    # Bind to Render port
+    port = int(os.getenv("PORT", 5000))
+    app.run(host="0.0.0.0", port=port)
