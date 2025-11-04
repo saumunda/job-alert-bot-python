@@ -1,5 +1,3 @@
-requests
-schedule
-Flask
-python-telegram-bot
 playwright
+requests
+python-telegram-bot
