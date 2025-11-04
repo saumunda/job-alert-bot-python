@@ -5,10 +5,11 @@ services:
     buildCommand: |
       pip install -r requirements.txt
       playwright install chromium
-    startCommand: python main.py
+    startCommand: gunicorn main:app --bind 0.0.0.0:$PORT --workers 1
     plan: free
     envVars:
       - key: TELEGRAM_TOKEN
         value: 8214392800:AAGrRksRKpAD8Oa8H4aByo5XKSwc_9SM9Bo
       - key: CHAT_ID
         value: 7943617436
+
