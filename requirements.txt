@@ -1,3 +1,9 @@
 flask
 requests
 schedule
+
+# Playwright for browser automation
+playwright==1.46.0
+
+# Requests for any optional HTTP tasks (not strictly needed for offline)
+requests==2.31.0
