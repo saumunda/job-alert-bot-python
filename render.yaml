@@ -6,7 +6,7 @@ services:
     buildCommand: |
       pip install -r requirements.txt
       python -m playwright install chromium
-    startCommand: python main2.py
+    startCommand: python main.py
     envVars:
       - key: TELEGRAM_BOT_TOKEN
         value: 8214392800:AAGrRksRKpAD8Oa8H4aByo5XKSwc_9SM9Bo
