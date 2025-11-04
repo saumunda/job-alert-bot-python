@@ -1,5 +1,6 @@
 from playwright.sync_api import sync_playwright
 import time
+import os
 import requests
 
 # ------------- Settings -------------
@@ -8,8 +9,8 @@ WAIT_TIME_MS = 5000           # Wait for page to load GraphQL requests
 REFRESH_INTERVAL = 3600       # Seconds between checks
 
 # Telegram Settings
-TELEGRAM_BOT_TOKEN = "YOUR_BOT_TOKEN_HERE"
-TELEGRAM_CHAT_ID = "YOUR_CHAT_ID_HERE"
+TELEGRAM_BOT_TOKEN = os.environ.get("BOT_TOKEN")
+TELEGRAM_CHAT_ID = os.environ.get("CHAT_ID")
 
 # Keep track of jobs already sent
 sent_job_ids = set()
