@@ -70,6 +70,7 @@ def fetch_jobs(auth_token):
         "authorization": auth_token,
         "content-type": "application/json",
         "origin": "https://www.jobsatamazon.co.uk",
+        "accept": "text/html",
         "referer": "https://www.jobsatamazon.co.uk/",
         "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
     }
@@ -132,3 +133,4 @@ if __name__ == "__main__":
     port = int(os.getenv("PORT", 5000))
     app.run(host="0.0.0.0", port=port)
     send_telegram_message(port)
+
