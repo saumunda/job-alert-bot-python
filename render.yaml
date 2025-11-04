@@ -4,7 +4,7 @@ services:
     env: python
     buildCommand: |
       pip install -r requirements.txt
-      playwright install chromium
+      python -m playwright install chromium
     startCommand: gunicorn main:app --bind 0.0.0.0:$PORT --workers 1
     envVars:
       - key: TELEGRAM_BOT_TOKEN
