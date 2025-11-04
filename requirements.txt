@@ -1,5 +1,4 @@
 Flask
 requests
 playwright
-python-telegram-bot==20.8
-gunicorn
+python-telegram-bot
