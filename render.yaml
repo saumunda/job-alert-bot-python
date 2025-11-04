@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: amazon-job-bot
+    name: job-alert-bot-python
     env: python
     buildCommand: |
       pip install -r requirements.txt
