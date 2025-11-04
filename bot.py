@@ -2,6 +2,7 @@ import requests
 import os
 import json
 import time
+from flask import Flask
 
 # === CONFIGURATION ===
 GRAPHQL_URL = "https://qy64m4juabaffl7tjakii4gdoa.appsync-api.eu-west-1.amazonaws.com/graphql"
@@ -10,6 +11,8 @@ JOB_PAGE_URL = "https://www.jobsatamazon.co.uk/app#/jobSearch?query=Warehouse%20
 # Telegram settings
 TELEGRAM_BOT_TOKEN = "8214392800:AAGrRksRKpAD8Oa8H4aByo5XKSwc_9SM9Bo"
 CHAT_ID = "7943617436"
+
+app = Flask(__name__)
 
 # To track what we've already sent
 seen_jobs = set()
