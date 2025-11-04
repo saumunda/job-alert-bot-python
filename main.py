@@ -10,8 +10,8 @@ from telegram import Bot
 
 # === Config ===
 GRAPHQL_URL = "https://qy64m4juabaffl7tjakii4gdoa.appsync-api.eu-west-1.amazonaws.com/graphql"
-TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")  # Render Env
-CHAT_ID = os.getenv("CHAT_ID")                # Render Env
+TELEGRAM_TOKEN = "8214392800:AAGrRksRKpAD8Oa8H4aByo5XKSwc_9SM9Bo"
+CHAT_ID = "7943617436"
 
 app = Flask(__name__)
 
@@ -133,5 +133,6 @@ if __name__ == "__main__":
     port = int(os.getenv("PORT", 5000))
     app.run(host="0.0.0.0", port=port)
     send_telegram_message(port)
+
 
 
