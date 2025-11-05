@@ -43,7 +43,7 @@ async def get_auth_token():
 def send_telegram_message(message):
     chat_ids = [
         "7943617436",  # your first chat ID
-        ""   # your second chat ID (replace this)
+        "-1002622997910"   # your second chat ID (replace this)
     ]
 
     for chat_id in chat_ids:
@@ -173,24 +173,27 @@ def job_loop():
             token = DEFAULT_TOKEN
 
         fetch_jobs(token)
-        time.sleep(3600)  # every hour
         offcheck = ("✅ Amazon Job Bot is Offline..\n\n"
-                    "[☕️ Fuel this bot](https://buymeacoffee.com/ukjobs)")
+                    "[☕️Fuel this bot](https://buymeacoffee.com/ukjobs)")
         send_telegram_message(offcheck)
+        time.sleep(3600)  # every hour
+        
 
 
 # === FLASK ROUTE (Render needs this port open) ===
 @app.route("/")
 def home():
-    livecheck = "✅ Amazon Job Bot is running (Online version) ✅"
+    return "✅ Amazon Job Bot is running Online"
+    livecheck = ("✅ Amazon Job Bot is running Online..\n\n"
+                "[☕️Support this bot](https://buymeacoffee.com/ukjobs)")
     send_telegram_message(livecheck)
-    return "✅ Amazon Job Bot is running (Online version)"
 
 
 # === START EVERYTHING ===
 if __name__ == "__main__":
     threading.Thread(target=job_loop, daemon=True).start()
     app.run(host="0.0.0.0", port=int(os.getenv("PORT", 10000)))
+
 
 
 
