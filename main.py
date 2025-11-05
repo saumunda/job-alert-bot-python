@@ -176,7 +176,7 @@ def job_loop():
         offcheck = ("✅ Amazon Job Bot is Offline..\n\n"
                     "[☕️Fuel this bot](https://buymeacoffee.com/ukjobs)")
         send_telegram_message(offcheck)
-        time.sleep(3600)  # every hour
+        time.sleep(1800)  # every 30 min
         
 
 
@@ -193,6 +193,7 @@ def home():
 if __name__ == "__main__":
     threading.Thread(target=job_loop, daemon=True).start()
     app.run(host="0.0.0.0", port=int(os.getenv("PORT", 10000)))
+
 
 
 
