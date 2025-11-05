@@ -113,26 +113,26 @@ def fetch_jobs(auth_token):
             send_telegram_message(foundjobs)
             
             for job in job_cards:
-            job_id = job.get("jobId")
-            if job_id not in seen_jobs:
-                seen_jobs.add(job_id)
-                title = job.get("jobTitle")
-                city = job.get("city")
-                state = job.get("state")
-                postal = job.get("postalCode")
-                type_job = job.get("jobType")
-                emp_type = job.get("employmentType")
-                pay = job.get("totalPayRateMax")
-                msg = (
-                    f"💼 *{title}* in {city}, {state}, {postal}\n"
-                    f"💰 Pay: £{pay}/hr\n"
-                    f"🕒 Job Type: {type_job}\n"
-                    f"📋 Employment Type: {emp_type}\n"
-                    f"🔗 https://www.jobsatamazon.co.uk/app#/jobDetail?jobId={job_id}&locale=en-GB"
-
-                )
-                print("🔔 New job found:", title)
-                send_telegram_message(msg)
+                job_id = job.get("jobId")
+                if job_id not in seen_jobs:
+                    seen_jobs.add(job_id)
+                    title = job.get("jobTitle")
+                    city = job.get("city")
+                    state = job.get("state")
+                    postal = job.get("postalCode")
+                    type_job = job.get("jobType")
+                    emp_type = job.get("employmentType")
+                    pay = job.get("totalPayRateMax")
+                    msg = (
+                        f"💼 *{title}* in {city}, {state}, {postal}\n"
+                        f"💰 Pay: £{pay}/hr\n"
+                        f"🕒 Job Type: {type_job}\n"
+                        f"📋 Employment Type: {emp_type}\n"
+                        f"🔗 https://www.jobsatamazon.co.uk/app#/jobDetail?jobId={job_id}&locale=en-GB"
+    
+                    )
+                    print("🔔 New job found:", title)
+                    send_telegram_message(msg)
         else:
             print("⚠️ GraphQL request failed:", response.status_code, response.text)
     except Exception as e:
@@ -173,10 +173,10 @@ def job_loop():
             token = DEFAULT_TOKEN
 
         fetch_jobs(token)
+        time.sleep(3600)  # every hour
         offcheck = ("✅ Amazon Job Bot is Offline..\n\n"
                     "[☕️ Fuel this bot](https://buymeacoffee.com/ukjobs)")
         send_telegram_message(offcheck)
-        time.sleep(3600)  # every hour
 
 
 # === FLASK ROUTE (Render needs this port open) ===
@@ -191,6 +191,7 @@ def home():
 if __name__ == "__main__":
     threading.Thread(target=job_loop, daemon=True).start()
     app.run(host="0.0.0.0", port=int(os.getenv("PORT", 10000)))
+
 
 
 
