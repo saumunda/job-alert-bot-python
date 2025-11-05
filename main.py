@@ -120,18 +120,42 @@ def fetch_jobs(auth_token):
 def job_loop():
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
+
+    DEFAULT_TOKEN = (
+        "Bearer Status|unauthenticated|Session|"
+        "eyJhbGciOiJLTVMiLCJ0eXAiOiJKV1QifQ.eyJpYXQiOjE3NjIyNzQwOTMsImV4cCI6MTc2MjI3NzY5M30."
+        "AQICAHh9Y3eh+eSawH7KZrCzIFETq1dycngugjOljT8N4eCxVgHUjhNAx2EBPruQ8xTeM8qZAAAAtDCBsQYJKoZI"
+        "hvcNAQcGoIGjMIGgAgEAMIGaBgkqhkiG9w0BBwEwHgYJYIZIAWUDBAEuMBEEDGMxfXv7ZLciMdQXNAIBEIBt3/"
+        "BpJ/Kmb54bc5DlW3X3xyooeyLZxLLLkImLS1O0y9Tnn77otsO4nTxvQBQAz2UOawxNVrk16YDGeNJhpZnxcsjxsRc3TsrItNTEqnT2jbMfup2v1XgK3+dpL+PqzAJIqT2rBXhGRTCrYJeh0w=="
+    )
+
     while True:
         print("⏳ Running scheduled job check...")
-        jobcheck = "⏳ Running scheduled job check..."
-        token = loop.run_until_complete(get_auth_token())
-        send_telegram_message(jobcheck)
-        if token:
-            fetch_jobs(token)
-        else:
-            print("⚠️ Could not get session token.")
-            erorcheck = "⚠️ Could not get session token."
-            send_telegram_message(erorcheck)
+        send_telegram_message("⏳ Running scheduled job check...")
+
+        token = None
+        for attempt in range(1, 4):  # Retry 3 times
+            print(f"🔄 Attempt {attempt}/3 to fetch session token...")
+            send_telegram_message(f"🔄 Attempt {attempt}/3 to fetch session token...")
+            token = loop.run_until_complete(get_auth_token())
+
+            if token:
+                print("✅ Successfully fetched session token.")
+                send_telegram_message("✅ Successfully fetched session token.")
+                break
+            else:
+                print(f"⚠️ Attempt {attempt} failed. Retrying in 10s...")
+                send_telegram_message(f"⚠️ Attempt {attempt} failed. Retrying in 10s...")
+                time.sleep(10)
+
+        if not token:
+            print("⚠️ All attempts failed — using default unauthenticated token.")
+            send_telegram_message("⚠️ All attempts failed — using default unauthenticated token.")
+            token = DEFAULT_TOKEN
+
+        fetch_jobs(token)
         time.sleep(3600)  # every hour
+
 
 # === FLASK ROUTE (Render needs this port open) ===
 @app.route("/")
@@ -146,5 +170,6 @@ if __name__ == "__main__":
     startcheck = "✅ === START EVERYTHING === ✅"
     send_telegram_message(startcheck)
     threading.Thread(target=job_loop, daemon=True).start()
-    app.run(host="0.0.0.0", port=int(os.getenv("PORT", 5000)))
+    app.run(host="0.0.0.0", port=int(os.getenv("PORT", 10000)))
+
 
