@@ -155,7 +155,7 @@ def job_loop():
         print("⏳ Running scheduled job check...")
         send_telegram_message("⏳ Running scheduled job check...")
 
-        token = None
+        token = ""
         for attempt in range(1, 4):  # Retry 3 times
             print(f"🔄 Attempt {attempt}/3 to fetch session token...")
             token = loop.run_until_complete(get_auth_token())
@@ -176,7 +176,7 @@ def job_loop():
         offcheck = ("✅ Amazon Job Bot is Offline..\n\n"
                     "[☕️Fuel this bot](https://buymeacoffee.com/ukjobs)")
         send_telegram_message(offcheck)
-        time.sleep(1800)  # every 30 min
+        time.sleep(1200)  # every 20 min
         
 
 
@@ -193,6 +193,7 @@ def home():
 if __name__ == "__main__":
     threading.Thread(target=job_loop, daemon=True).start()
     app.run(host="0.0.0.0", port=int(os.getenv("PORT", 10000)))
+
 
 
 
