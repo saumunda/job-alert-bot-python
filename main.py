@@ -1,60 +1,66 @@
-import requests
-import json
+import os
 import time
-import threading
+import json
 import random
-from flask import Flask
+import threading
 import asyncio
+import requests
+from flask import Flask
 from playwright.async_api import async_playwright
 
 # === CONFIGURATION ===
 GRAPHQL_URL = "https://qy64m4juabaffl7tjakii4gdoa.appsync-api.eu-west-1.amazonaws.com/graphql"
 JOB_PAGE_URL = "https://www.jobsatamazon.co.uk/app#/jobSearch?query=Warehouse%20Operative&locale=en-GB"
 
-# Example proxy list (replace with your own working proxies or use ENV vars)
+# === TELEGRAM BOT SETTINGS ===
+TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")  # set this in Render env
+CHAT_IDS = [
+    "7943617436",       # personal chat
+    "-1002622997910"    # group chat
+]
+
+# === PROXY & USER-AGENT ROTATION ===
 PROXIES = [
+    # add your own reliable proxies
     "http://185.199.229.156:7492",
     "http://103.155.54.26:83",
     "http://91.92.155.207:3128",
 ]
 
-
-# Some realistic Windows-based User-Agents (can expand if you like)
 USER_AGENTS = [
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36",
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:132.0) Gecko/20100101 Firefox/132.0",
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Safari/605.1.15 Edg/129.0.0.0",
 ]
 
-# Telegram bot credentials (set as ENV vars on Render)
-import os
-TELEGRAM_BOT_TOKEN = "8214392800:AAGrRksRKpAD8Oa8H4aByo5XKSwc_9SM9Bo"
-
-# Track jobs already sent
 seen_jobs = set()
-
 app = Flask(__name__)
 
-# === TOKEN FETCH USING PLAYWRIGHT (headless browser) ===
+# === TELEGRAM MESSAGE ===
+def send_telegram_message(message: str):
+    for chat_id in CHAT_IDS:
+        try:
+            url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
+            payload = {"chat_id": chat_id, "text": message, "parse_mode": "Markdown"}
+            requests.post(url, data=payload, timeout=10)
+        except Exception as e:
+            print(f"⚠️ Telegram send error to {chat_id}: {e}")
+
+# === FETCH SESSION TOKEN (Playwright) ===
 async def get_auth_token():
     try:
-        # Choose random proxy and User-Agent for this session
-        chosen_proxy = random.choice(PROXIES)
-        chosen_agent = random.choice(USER_AGENTS)
-        
-        print(f"🌐 Using proxy: {chosen_proxy}")
-        print(f"🧭 Using User-Agent: {chosen_agent}")
+        proxy = random.choice(PROXIES)
+        agent = random.choice(USER_AGENTS)
+        print(f"🌐 Using proxy: {proxy}")
+        print(f"🧭 Using User-Agent: {agent}")
 
         async with async_playwright() as p:
-            # Launch browser with proxy
             browser = await p.chromium.launch(
                 headless=True,
-                proxy={"server": chosen_proxy}
+                proxy={"server": proxy}
             )
-
-            # Create a new browser context with custom headers
             context = await browser.new_context(
-                user_agent=chosen_agent,
+                user_agent=agent,
                 extra_http_headers={
                     "Accept": "text/html",
                     "Referer": "https://www.jobsatamazon.co.uk/"
@@ -63,43 +69,21 @@ async def get_auth_token():
 
             page = await context.new_page()
             await page.goto(JOB_PAGE_URL, wait_until="load")
-
             cookies = await context.cookies()
             await browser.close()
 
             for cookie in cookies:
                 if "session" in cookie["name"].lower():
                     print(f"✅ Session cookie found: {cookie['name']}")
-                    msg = f"✅ Session cookie found: {cookie['name']}"
-                    send_telegram_message(msg)
+                    send_telegram_message("✅ Session cookie fetched successfully.")
                     return f"Bearer {cookie['value']}"
 
     except Exception as e:
-        print(f"❌ Playwright failed: {type(e).__name__} - {e}")
-
+        print(f"❌ Playwright token fetch failed: {e}")
     return None
 
-# === TELEGRAM ALERT (supports multiple chat IDs) ===
-def send_telegram_message(message):
-    chat_ids = [
-        "7943617436",  # your first chat ID
-        "-1002622997910"   # your second chat ID (replace this)
-    ]
-
-    for chat_id in chat_ids:
-        try:
-            url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
-            payload = {
-                "chat_id": chat_id,
-                "text": message,
-                "parse_mode": "Markdown"
-            }
-            requests.post(url, data=payload)
-        except Exception as e:
-            print(f"⚠️ Telegram send error to {chat_id}: {e}")
-
-# === JOB FETCH FUNCTION ===
-def fetch_jobs(auth_token):
+# === FETCH JOB DATA ===
+def fetch_jobs(auth_token: str):
     payload = {
         "operationName": "searchJobCardsByLocation",
         "variables": {
@@ -140,115 +124,73 @@ def fetch_jobs(auth_token):
         "Content-Type": "application/json",
         "Origin": "https://www.jobsatamazon.co.uk",
         "Referer": "https://www.jobsatamazon.co.uk/",
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
+        "User-Agent": random.choice(USER_AGENTS)
     }
 
     try:
-        response = requests.post(GRAPHQL_URL, headers=headers, json=payload)
-        if response.status_code == 200:
-            data = response.json()
-            job_cards = data.get("data", {}).get("searchJobCardsByLocation", {}).get("jobCards", [])
-            print(f"📦 Found {len(job_cards)} jobs.")
-            foundjobs = f"[📦 Currently Available {len(job_cards)} jobs in total.](https://www.jobsatamazon.co.uk/app#/jobSearch)"
-            send_telegram_message(foundjobs)
-            
-            for job in job_cards:
-                job_id = job.get("jobId")
-                if job_id not in seen_jobs:
-                    seen_jobs.add(job_id)
-                    title = job.get("jobTitle")
-                    city = job.get("city")
-                    state = job.get("state")
-                    postal = job.get("postalCode")
-                    type_job = job.get("jobType")
-                    emp_type = job.get("employmentType")
-                    pay = job.get("totalPayRateMax")
-                    msg = (
-                        f"💼 *{title}* in {city}, {state}, {postal}\n"
-                        f"💰 Pay: £{pay}/hr\n"
-                        f"🕒 Job Type: {type_job}\n"
-                        f"📋 Employment Type: {emp_type}\n"
-                        f"🔗 https://www.jobsatamazon.co.uk/app#/jobDetail?jobId={job_id}&locale=en-GB"
-    
-                    )
-                    print("🔔 New job found:", title)
-                    send_telegram_message(msg)
-        else:
+        response = requests.post(GRAPHQL_URL, headers=headers, json=payload, timeout=15)
+        if response.status_code != 200:
             print("⚠️ GraphQL request failed:", response.status_code, response.text)
+            return
+
+        job_cards = response.json().get("data", {}).get("searchJobCardsByLocation", {}).get("jobCards", [])
+        print(f"📦 Found {len(job_cards)} jobs.")
+        send_telegram_message(f"[📦 {len(job_cards)} warehouse jobs currently available.](https://www.jobsatamazon.co.uk/app#/jobSearch)")
+
+        for job in job_cards:
+            job_id = job.get("jobId")
+            if job_id not in seen_jobs:
+                seen_jobs.add(job_id)
+                msg = (
+                    f"💼 *{job.get('jobTitle')}*\n"
+                    f"📍 {job.get('city')}, {job.get('state')} {job.get('postalCode')}\n"
+                    f"💰 £{job.get('totalPayRateMax')}/hr\n"
+                    f"🕒 {job.get('jobType')} | {job.get('employmentType')}\n"
+                    f"🔗 [View Job](https://www.jobsatamazon.co.uk/app#/jobDetail?jobId={job_id}&locale=en-GB)"
+                )
+                print("🔔 New job found:", job.get("jobTitle"))
+                send_telegram_message(msg)
+
     except Exception as e:
         print("⚠️ Fetch error:", e)
 
-# === BACKGROUND JOB LOOP ===
+# === JOB LOOP ===
 def job_loop():
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
-
-    DEFAULT_TOKEN = (
-        "Bearer Status|unauthenticated|Session|"
-        "eyJhbGciOiJLTVMiLCJ0eXAiOiJKV1QifQ.eyJpYXQiOjE3NjIyNzQwOTMsImV4cCI6MTc2MjI3NzY5M30."
-        "AQICAHh9Y3eh+eSawH7KZrCzIFETq1dycngugjOljT8N4eCxVgHUjhNAx2EBPruQ8xTeM8qZAAAAtDCBsQYJKoZI"
-        "hvcNAQcGoIGjMIGgAgEAMIGaBgkqhkiG9w0BBwEwHgYJYIZIAWUDBAEuMBEEDGMxfXv7ZLciMdQXNAIBEIBt3/"
-        "BpJ/Kmb54bc5DlW3X3xyooeyLZxLLLkImLS1O0y9Tnn77otsO4nTxvQBQAz2UOawxNVrk16YDGeNJhpZnxcsjxsRc3TsrItNTEqnT2jbMfup2v1XgK3+dpL+PqzAJIqT2rBXhGRTCrYJeh0w=="
-    )
+    DEFAULT_TOKEN = "Bearer Status|unauthenticated|Session|exampleToken"
 
     while True:
         print("⏳ Running scheduled job check...")
-        send_telegram_message("⏳ Running scheduled job check...")
-
-        token = ""
-        for attempt in range(1, 4):  # Retry 3 times
-            print(f"🔄 Attempt {attempt}/3 to fetch session token...")
-            token = loop.run_until_complete(get_auth_token())
-
-            if token:
-                print("✅ Successfully fetched session token.")
-                send_telegram_message("✅ Successfully fetched session token.")
-                break
-            else:
-                print(f"⚠️ Attempt {attempt} failed. Retrying in 10s...")
-                time.sleep(10)
-
+        token = loop.run_until_complete(get_auth_token())
         if not token:
-            print("⚠️ All attempts failed — using default unauthenticated token.")
+            print("⚠️ Using fallback token.")
             token = DEFAULT_TOKEN
 
         fetch_jobs(token)
-        offcheck = ("✅ Amazon Job Bot is Offline..\n\n"
-                    "[☕️Fuel this bot](https://buymeacoffee.com/ukjobs)")
-        send_telegram_message(offcheck)
-        
+        print("✅ Sleeping for 1 hour before next check.")
+        time.sleep(3600)
 
+# === KEEP RENDER INSTANCE ALIVE ===
 def keep_alive():
+    url = os.getenv("RENDER_URL")  # e.g., https://yourapp.onrender.com/
+    if not url:
+        return
     while True:
         try:
-            requests.get("https://job-alert-bot-python.onrender.com/")
+            requests.get(url, timeout=10)
         except:
             pass
-        time.sleep(1800)
+        time.sleep(600)
 
-
-# === FLASK ROUTE (Render needs this port open) ===
+# === FLASK ROUTE ===
 @app.route("/")
 def home():
-    livecheck = ("✅ Amazon Job Bot is running Online..\n\n"
-                 "[☕️Support this bot](https://buymeacoffee.com/ukjobs)")
-    send_telegram_message(livecheck)
-    return "✅ Amazon Job Bot is running Online"
-
-
+    send_telegram_message("✅ Amazon Job Bot is running online.")
+    return "✅ Amazon Job Bot is running online."
 
 # === START EVERYTHING ===
 if __name__ == "__main__":
     threading.Thread(target=job_loop, daemon=True).start()
     threading.Thread(target=keep_alive, daemon=True).start()
     app.run(host="0.0.0.0", port=int(os.getenv("PORT", 10000)))
-
-
-
-
-
-
-
-
-
-
