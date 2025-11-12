@@ -13,10 +13,11 @@ JOB_PAGE_URL = "https://www.jobsatamazon.co.uk/app#/jobSearch?query=Warehouse%20
 
 # Example proxy list (replace with your own working proxies or use ENV vars)
 PROXIES = [
-    "http://username:password@proxy1.example.com:8080",
-    "http://username:password@proxy2.example.com:8080",
-    "http://username:password@proxy3.example.com:8080",
+    "http://185.199.229.156:7492",
+    "http://103.155.54.26:83",
+    "http://91.92.155.207:3128",
 ]
+
 
 # Some realistic Windows-based User-Agents (can expand if you like)
 USER_AGENTS = [
@@ -242,6 +243,7 @@ if __name__ == "__main__":
     threading.Thread(target=job_loop, daemon=True).start()
     threading.Thread(target=keep_alive, daemon=True).start()
     app.run(host="0.0.0.0", port=int(os.getenv("PORT", 10000)))
+
 
 
 
