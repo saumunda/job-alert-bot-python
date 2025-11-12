@@ -12,12 +12,13 @@ from playwright.async_api import async_playwright
 GRAPHQL_URL = "https://qy64m4juabaffl7tjakii4gdoa.appsync-api.eu-west-1.amazonaws.com/graphql"
 JOB_PAGE_URL = "https://www.jobsatamazon.co.uk/app#/jobSearch?query=Warehouse%20Operative&locale=en-GB"
 
-# === TELEGRAM BOT SETTINGS ===
-TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")  # set this in Render env
-CHAT_IDS = [
-    "7943617436",       # personal chat
-    "-1002622997910"    # group chat
-]
+# === TELEGRAM BOT SETTINGS (loaded securely from Render environment variables) ===
+TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+
+# Multiple chat IDs can be separated by commas in env var (e.g. "12345,-1001234567890")
+CHAT_IDS = os.getenv("TELEGRAM_CHAT_IDS", "")
+CHAT_IDS = [chat.strip() for chat in CHAT_IDS.split(",") if chat.strip()]
+
 
 # === PROXY & USER-AGENT ROTATION ===
 PROXIES = [
@@ -194,3 +195,4 @@ if __name__ == "__main__":
     threading.Thread(target=job_loop, daemon=True).start()
     threading.Thread(target=keep_alive, daemon=True).start()
     app.run(host="0.0.0.0", port=int(os.getenv("PORT", 10000)))
+
