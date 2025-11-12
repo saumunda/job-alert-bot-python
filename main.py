@@ -18,7 +18,7 @@ CHAT_IDS = os.getenv("TELEGRAM_CHAT_IDS", "")
 CHAT_IDS = [chat.strip() for chat in CHAT_IDS.split(",") if chat.strip()]
 
 if not TELEGRAM_BOT_TOKEN or not CHAT_IDS:
-    print("\n⚠️ Missing Telegram credentials — check Render env variables.")
+    print("f\n⚠️ Missing Telegram credentials — check Render env variables.")
 else:
     print(f"\n✅ Telegram config loaded ({len(CHAT_IDS)} chat IDs).")
 
@@ -152,10 +152,10 @@ def fetch_jobs(auth_token: str):
                     f"🕒 {job.get('jobType')} | {job.get('employmentType')}\n"
                     f"🔗 [View Job](https://www.jobsatamazon.co.uk/app#/jobDetail?jobId={job_id}&locale=en-GB)"
                 )
-                print("\n🔔 New job found:", job.get("jobTitle"))
+                print(f"\n🔔 New job found:", job.get("jobTitle"))
                 send_telegram_message(msg)
 
-        print("\n✅ Job fetch complete.")
+        print(f"\n✅ Job fetch complete.")
 
     except Exception as e:
         print(f"\n⚠️ Fetch error: {e}")
@@ -169,15 +169,15 @@ def job_loop():
 
     while True:
         try:
-            print("\n⏳ Starting scheduled Amazon job check...")
+            print(f"\n⏳ Starting scheduled Amazon job check...")
             token = loop.run_until_complete(get_auth_token())
             if not token:
-                print("\n⚠️ Using fallback token.")
+                print(f"\n⚠️ Using fallback token.")
                 token = DEFAULT_TOKEN
 
             fetch_jobs(token)
-            print("\n🕓 Sleeping 1 hour before next check.\n")
-            time.sleep(3600)  # 1 hour delay
+            print("f\n🕓 Sleeping 30 mins before next check.\n")
+            time.sleep(1800)  # 30 mins delay
         except Exception as e:
             print(f"\n⚠️ Loop error: {e}")
             time.sleep(300)  # wait 5 mins on error before retry
@@ -190,11 +190,11 @@ def keep_alive():
     while True:
         try:
             requests.get(url, timeout=10)
-            print("\n🌍 Keep-alive ping sent.")
-            offcheck = (f"\n✅ Amazon Job Bot is Offline.." "[☕️Fuel this bot](https://buymeacoffee.com/ukjobs)")
+            print(f"\n🌍 Keep-alive ping sent.")
+            offcheck = (f"\n✅ Amazon Job Bot is Offline..\n" "[☕️ Fuel this bot] (https://buymeacoffee.com/ukjobs)")
             send_telegram_message(offcheck)
         except:
-            print("\n⚠️ Keep-alive failed.")
+            print(f"\n⚠️ Keep-alive failed.")
         time.sleep(600)
 
 # === FLASK ENDPOINTS ===
@@ -215,6 +215,7 @@ if __name__ == "__main__":
     threading.Thread(target=job_loop, daemon=True).start()
     threading.Thread(target=keep_alive, daemon=True).start()
     app.run(host="0.0.0.0", port=int(os.getenv("PORT", 10000)))
+
 
 
 
