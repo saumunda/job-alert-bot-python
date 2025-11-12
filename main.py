@@ -18,9 +18,9 @@ CHAT_IDS = os.getenv("TELEGRAM_CHAT_IDS", "")
 CHAT_IDS = [chat.strip() for chat in CHAT_IDS.split(",") if chat.strip()]
 
 if not TELEGRAM_BOT_TOKEN or not CHAT_IDS:
-    print("⚠️ Missing Telegram credentials — check Render env variables.")
+    print("\n⚠️ Missing Telegram credentials — check Render env variables.")
 else:
-    print(f"✅ Telegram config loaded ({len(CHAT_IDS)} chat IDs).")
+    print(f"\n✅ Telegram config loaded ({len(CHAT_IDS)} chat IDs).")
 
 # === PROXY & USER-AGENT ROTATION ===
 PROXIES = [
@@ -46,9 +46,9 @@ def send_telegram_message(message: str):
             payload = {"chat_id": chat_id, "text": message, "parse_mode": "Markdown"}
             response = requests.post(url, data=payload, timeout=10)
             if response.status_code != 200:
-                print(f"⚠️ Telegram send error {chat_id}: {response.text}")
+                print(f"\n⚠️ Telegram send error {chat_id}: {response.text}")
         except Exception as e:
-            print(f"⚠️ Telegram send exception to {chat_id}: {e}")
+            print(f"\n⚠️ Telegram send exception to {chat_id}: {e}")
 
 # === FETCH TOKEN USING PLAYWRIGHT ===
 async def get_auth_token():
@@ -79,11 +79,11 @@ async def get_auth_token():
 
             for cookie in cookies:
                 if "session" in cookie["name"].lower():
-                    print(f"✅ Session cookie found: {cookie['name']}")
+                    print(f"\n✅ Session cookie found: {cookie['name']}")
                     return f"Bearer {cookie['value']}"
 
     except Exception as e:
-        print(f"❌ Playwright token fetch failed: {e}")
+        print(f"\n❌ Playwright token fetch failed: {e}")
     return None
 
 # === FETCH JOB DATA ===
@@ -134,12 +134,12 @@ def fetch_jobs(auth_token: str):
     try:
         response = requests.post(GRAPHQL_URL, headers=headers, json=payload, timeout=15)
         if response.status_code != 200:
-            print(f"⚠️ GraphQL request failed: {response.status_code}")
+            print(f"\n⚠️ GraphQL request failed: {response.status_code}")
             return
 
         data = response.json()
         job_cards = data.get("data", {}).get("searchJobCardsByLocation", {}).get("jobCards", [])
-        print(f"📦 Found {len(job_cards)} jobs.")
+        print(f"\n📦 Found {len(job_cards)} jobs.")
 
         for job in job_cards:
             job_id = job.get("jobId")
@@ -152,13 +152,13 @@ def fetch_jobs(auth_token: str):
                     f"🕒 {job.get('jobType')} | {job.get('employmentType')}\n"
                     f"🔗 [View Job](https://www.jobsatamazon.co.uk/app#/jobDetail?jobId={job_id}&locale=en-GB)"
                 )
-                print("🔔 New job found:", job.get("jobTitle"))
+                print("\n🔔 New job found:", job.get("jobTitle"))
                 send_telegram_message(msg)
 
-        print("✅ Job fetch complete.")
+        print("\n✅ Job fetch complete.")
 
     except Exception as e:
-        print(f"⚠️ Fetch error: {e}")
+        print(f"\n⚠️ Fetch error: {e}")
 
 # === BACKGROUND JOB LOOP (with safe delay) ===
 def job_loop():
@@ -172,14 +172,14 @@ def job_loop():
             print("\n⏳ Starting scheduled Amazon job check...")
             token = loop.run_until_complete(get_auth_token())
             if not token:
-                print("⚠️ Using fallback token.")
+                print("\n⚠️ Using fallback token.")
                 token = DEFAULT_TOKEN
 
             fetch_jobs(token)
-            print("🕓 Sleeping 1 hour before next check.\n")
+            print("\n🕓 Sleeping 1 hour before next check.\n")
             time.sleep(3600)  # 1 hour delay
         except Exception as e:
-            print(f"⚠️ Loop error: {e}")
+            print(f"\n⚠️ Loop error: {e}")
             time.sleep(300)  # wait 5 mins on error before retry
 
 # === KEEP-ALIVE THREAD (Render idle prevention) ===
@@ -190,9 +190,9 @@ def keep_alive():
     while True:
         try:
             requests.get(url, timeout=10)
-            print("🌍 Keep-alive ping sent.")
+            print("\n🌍 Keep-alive ping sent.")
         except:
-            print("⚠️ Keep-alive failed.")
+            print("\n⚠️ Keep-alive failed.")
         time.sleep(600)
 
 # === FLASK ENDPOINTS ===
@@ -206,10 +206,11 @@ def forcefetch():
     if not token:
         token = "Bearer Status|unauthenticated|Session|exampleToken"
     fetch_jobs(token)
-    return "✅ Manual job fetch completed."
+    return "\n✅ Manual job fetch completed."
 
 # === START APP ===
 if __name__ == "__main__":
     threading.Thread(target=job_loop, daemon=True).start()
     threading.Thread(target=keep_alive, daemon=True).start()
     app.run(host="0.0.0.0", port=int(os.getenv("PORT", 10000)))
+
