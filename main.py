@@ -12,17 +12,18 @@ from playwright.async_api import async_playwright
 GRAPHQL_URL = "https://qy64m4juabaffl7tjakii4gdoa.appsync-api.eu-west-1.amazonaws.com/graphql"
 JOB_PAGE_URL = "https://www.jobsatamazon.co.uk/app#/jobSearch?query=Warehouse%20Operative&locale=en-GB"
 
-# === TELEGRAM BOT SETTINGS (loaded securely from Render environment variables) ===
+# === TELEGRAM SETTINGS (secure from Render env) ===
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
-
-# Multiple chat IDs can be separated by commas in env var (e.g. "12345,-1001234567890")
 CHAT_IDS = os.getenv("TELEGRAM_CHAT_IDS", "")
 CHAT_IDS = [chat.strip() for chat in CHAT_IDS.split(",") if chat.strip()]
 
+if not TELEGRAM_BOT_TOKEN or not CHAT_IDS:
+    print("⚠️ Missing Telegram credentials — check Render env variables.")
+else:
+    print(f"✅ Telegram config loaded ({len(CHAT_IDS)} chat IDs).")
 
 # === PROXY & USER-AGENT ROTATION ===
 PROXIES = [
-    # add your own reliable proxies
     "http://185.199.229.156:7492",
     "http://103.155.54.26:83",
     "http://91.92.155.207:3128",
@@ -37,17 +38,19 @@ USER_AGENTS = [
 seen_jobs = set()
 app = Flask(__name__)
 
-# === TELEGRAM MESSAGE ===
+# === TELEGRAM FUNCTION ===
 def send_telegram_message(message: str):
     for chat_id in CHAT_IDS:
         try:
             url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
             payload = {"chat_id": chat_id, "text": message, "parse_mode": "Markdown"}
-            requests.post(url, data=payload, timeout=10)
+            response = requests.post(url, data=payload, timeout=10)
+            if response.status_code != 200:
+                print(f"⚠️ Telegram send error {chat_id}: {response.text}")
         except Exception as e:
-            print(f"⚠️ Telegram send error to {chat_id}: {e}")
+            print(f"⚠️ Telegram send exception to {chat_id}: {e}")
 
-# === FETCH SESSION TOKEN (Playwright) ===
+# === FETCH TOKEN USING PLAYWRIGHT ===
 async def get_auth_token():
     try:
         proxy = random.choice(PROXIES)
@@ -70,13 +73,13 @@ async def get_auth_token():
 
             page = await context.new_page()
             await page.goto(JOB_PAGE_URL, wait_until="load")
+
             cookies = await context.cookies()
             await browser.close()
 
             for cookie in cookies:
                 if "session" in cookie["name"].lower():
                     print(f"✅ Session cookie found: {cookie['name']}")
-                    send_telegram_message("✅ Session cookie fetched successfully.")
                     return f"Bearer {cookie['value']}"
 
     except Exception as e:
@@ -131,12 +134,12 @@ def fetch_jobs(auth_token: str):
     try:
         response = requests.post(GRAPHQL_URL, headers=headers, json=payload, timeout=15)
         if response.status_code != 200:
-            print("⚠️ GraphQL request failed:", response.status_code, response.text)
+            print(f"⚠️ GraphQL request failed: {response.status_code}")
             return
 
-        job_cards = response.json().get("data", {}).get("searchJobCardsByLocation", {}).get("jobCards", [])
+        data = response.json()
+        job_cards = data.get("data", {}).get("searchJobCardsByLocation", {}).get("jobCards", [])
         print(f"📦 Found {len(job_cards)} jobs.")
-        send_telegram_message(f"[📦 {len(job_cards)} warehouse jobs currently available.](https://www.jobsatamazon.co.uk/app#/jobSearch)")
 
         for job in job_cards:
             job_id = job.get("jobId")
@@ -152,47 +155,61 @@ def fetch_jobs(auth_token: str):
                 print("🔔 New job found:", job.get("jobTitle"))
                 send_telegram_message(msg)
 
-    except Exception as e:
-        print("⚠️ Fetch error:", e)
+        print("✅ Job fetch complete.")
 
-# === JOB LOOP ===
+    except Exception as e:
+        print(f"⚠️ Fetch error: {e}")
+
+# === BACKGROUND JOB LOOP (with safe delay) ===
 def job_loop():
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
+
     DEFAULT_TOKEN = "Bearer Status|unauthenticated|Session|exampleToken"
 
     while True:
-        print("⏳ Running scheduled job check...")
-        token = loop.run_until_complete(get_auth_token())
-        if not token:
-            print("⚠️ Using fallback token.")
-            token = DEFAULT_TOKEN
+        try:
+            print("\n⏳ Starting scheduled Amazon job check...")
+            token = loop.run_until_complete(get_auth_token())
+            if not token:
+                print("⚠️ Using fallback token.")
+                token = DEFAULT_TOKEN
 
-        fetch_jobs(token)
-        print("✅ Sleeping for 1 hour before next check.")
-        time.sleep(3600)
+            fetch_jobs(token)
+            print("🕓 Sleeping 1 hour before next check.\n")
+            time.sleep(3600)  # 1 hour delay
+        except Exception as e:
+            print(f"⚠️ Loop error: {e}")
+            time.sleep(300)  # wait 5 mins on error before retry
 
-# === KEEP RENDER INSTANCE ALIVE ===
+# === KEEP-ALIVE THREAD (Render idle prevention) ===
 def keep_alive():
-    url = os.getenv("RENDER_URL")  # e.g., https://yourapp.onrender.com/
+    url = os.getenv("RENDER_URL")
     if not url:
         return
     while True:
         try:
             requests.get(url, timeout=10)
+            print("🌍 Keep-alive ping sent.")
         except:
-            pass
+            print("⚠️ Keep-alive failed.")
         time.sleep(600)
 
-# === FLASK ROUTE ===
+# === FLASK ENDPOINTS ===
 @app.route("/")
 def home():
-    send_telegram_message("✅ Amazon Job Bot is running online.")
     return "✅ Amazon Job Bot is running online."
 
-# === START EVERYTHING ===
+@app.route("/forcefetch")
+def forcefetch():
+    token = asyncio.run(get_auth_token())
+    if not token:
+        token = "Bearer Status|unauthenticated|Session|exampleToken"
+    fetch_jobs(token)
+    return "✅ Manual job fetch completed."
+
+# === START APP ===
 if __name__ == "__main__":
     threading.Thread(target=job_loop, daemon=True).start()
     threading.Thread(target=keep_alive, daemon=True).start()
     app.run(host="0.0.0.0", port=int(os.getenv("PORT", 10000)))
-
