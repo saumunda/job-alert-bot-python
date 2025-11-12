@@ -216,7 +216,6 @@ def job_loop():
         offcheck = ("✅ Amazon Job Bot is Offline..\n\n"
                     "[☕️Fuel this bot](https://buymeacoffee.com/ukjobs)")
         send_telegram_message(offcheck)
-        time.sleep(1800)  # every 30 min
         
 
 def keep_alive():
@@ -225,7 +224,7 @@ def keep_alive():
             requests.get("https://job-alert-bot-python.onrender.com/")
         except:
             pass
-        time.sleep(600)
+        time.sleep(1800)
 
 
 # === FLASK ROUTE (Render needs this port open) ===
@@ -243,6 +242,7 @@ if __name__ == "__main__":
     threading.Thread(target=job_loop, daemon=True).start()
     threading.Thread(target=keep_alive, daemon=True).start()
     app.run(host="0.0.0.0", port=int(os.getenv("PORT", 10000)))
+
 
 
 
