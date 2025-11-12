@@ -191,7 +191,7 @@ def keep_alive():
         try:
             requests.get(url, timeout=10)
             print("\n🌍 Keep-alive ping sent.")
-            offcheck = ("\n✅ Amazon Job Bot is Offline.." "[☕️Fuel this bot](https://buymeacoffee.com/ukjobs)")
+            offcheck = (f"\n✅ Amazon Job Bot is Offline.." "[☕️Fuel this bot](https://buymeacoffee.com/ukjobs)")
             send_telegram_message(offcheck)
         except:
             print("\n⚠️ Keep-alive failed.")
@@ -215,5 +215,6 @@ if __name__ == "__main__":
     threading.Thread(target=job_loop, daemon=True).start()
     threading.Thread(target=keep_alive, daemon=True).start()
     app.run(host="0.0.0.0", port=int(os.getenv("PORT", 10000)))
+
 
 
