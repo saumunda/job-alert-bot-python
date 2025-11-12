@@ -2,6 +2,7 @@ import requests
 import json
 import time
 import threading
+import random
 from flask import Flask
 import asyncio
 from playwright.async_api import async_playwright
@@ -9,6 +10,20 @@ from playwright.async_api import async_playwright
 # === CONFIGURATION ===
 GRAPHQL_URL = "https://qy64m4juabaffl7tjakii4gdoa.appsync-api.eu-west-1.amazonaws.com/graphql"
 JOB_PAGE_URL = "https://www.jobsatamazon.co.uk/app#/jobSearch?query=Warehouse%20Operative&locale=en-GB"
+
+# Example proxy list (replace with your own working proxies or use ENV vars)
+PROXIES = [
+    "http://username:password@proxy1.example.com:8080",
+    "http://username:password@proxy2.example.com:8080",
+    "http://username:password@proxy3.example.com:8080",
+]
+
+# Some realistic Windows-based User-Agents (can expand if you like)
+USER_AGENTS = [
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:132.0) Gecko/20100101 Firefox/132.0",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Safari/605.1.15 Edg/129.0.0.0",
+]
 
 # Telegram bot credentials (set as ENV vars on Render)
 import os
@@ -22,21 +37,45 @@ app = Flask(__name__)
 # === TOKEN FETCH USING PLAYWRIGHT (headless browser) ===
 async def get_auth_token():
     try:
+        # Choose random proxy and User-Agent for this session
+        chosen_proxy = random.choice(PROXIES)
+        chosen_agent = random.choice(USER_AGENTS)
+        
+        print(f"🌐 Using proxy: {chosen_proxy}")
+        print(f"🧭 Using User-Agent: {chosen_agent}")
+
         async with async_playwright() as p:
-            browser = await p.chromium.launch(headless=True)
-            page = await browser.new_page()
+            # Launch browser with proxy
+            browser = await p.chromium.launch(
+                headless=True,
+                proxy={"server": chosen_proxy}
+            )
+
+            # Create a new browser context with custom headers
+            context = await browser.new_context(
+                user_agent=chosen_agent,
+                extra_http_headers={
+                    "Accept": "text/html",
+                    "Referer": "https://www.jobsatamazon.co.uk/"
+                }
+            )
+
+            page = await context.new_page()
             await page.goto(JOB_PAGE_URL, wait_until="load")
-            cookies = await page.context.cookies()
+
+            cookies = await context.cookies()
             await browser.close()
 
             for cookie in cookies:
                 if "session" in cookie["name"].lower():
                     print(f"✅ Session cookie found: {cookie['name']}")
-                    cokkiecheck = f"✅ Session cookie found: {cookie['name']}"
-                    send_telegram_message(cokkiecheck)
+                    msg = f"✅ Session cookie found: {cookie['name']}"
+                    send_telegram_message(msg)
                     return f"Bearer {cookie['value']}"
+
     except Exception as e:
-        print(f"❌ Playwright token fetch failed: {e}")
+        print(f"❌ Playwright failed: {type(e).__name__} - {e}")
+
     return None
 
 # === TELEGRAM ALERT (supports multiple chat IDs) ===
@@ -176,23 +215,34 @@ def job_loop():
         offcheck = ("✅ Amazon Job Bot is Offline..\n\n"
                     "[☕️Fuel this bot](https://buymeacoffee.com/ukjobs)")
         send_telegram_message(offcheck)
-        time.sleep(1200)  # every 20 min
+        time.sleep(1800)  # every 30 min
         
+
+def keep_alive():
+    while True:
+        try:
+            requests.get("https://job-alert-bot-python.onrender.com/")
+        except:
+            pass
+        time.sleep(600)
 
 
 # === FLASK ROUTE (Render needs this port open) ===
 @app.route("/")
 def home():
-    return "✅ Amazon Job Bot is running Online"
     livecheck = ("✅ Amazon Job Bot is running Online..\n\n"
-                "[☕️Support this bot](https://buymeacoffee.com/ukjobs)")
+                 "[☕️Support this bot](https://buymeacoffee.com/ukjobs)")
     send_telegram_message(livecheck)
+    return "✅ Amazon Job Bot is running Online"
+
 
 
 # === START EVERYTHING ===
 if __name__ == "__main__":
     threading.Thread(target=job_loop, daemon=True).start()
+    threading.Thread(target=keep_alive, daemon=True).start()
     app.run(host="0.0.0.0", port=int(os.getenv("PORT", 10000)))
+
 
 
 
