@@ -191,8 +191,6 @@ def keep_alive():
         try:
             requests.get(url, timeout=10)
             print(f"\n🌍 Keep-alive ping sent.")
-            offcheck = (f"\n✅ Amazon Job Bot is running Online..\n" "[☕️ Fuel this bot for running...] (https://buymeacoffee.com/ukjobs)")
-            send_telegram_message(offcheck)
         except:
             print(f"\n⚠️ Keep-alive failed.")
         time.sleep(600)
@@ -201,6 +199,8 @@ def keep_alive():
 @app.route("/")
 def home():
     return "✅ Amazon Job Bot is running online."
+    offcheck = (f"\n✅ Amazon Job Bot is running Online..\n" "[☕️ Fuel this bot for running...] (https://buymeacoffee.com/ukjobs)")
+    send_telegram_message(offcheck)
 
 @app.route("/forcefetch")
 def forcefetch():
@@ -215,6 +215,7 @@ if __name__ == "__main__":
     threading.Thread(target=job_loop, daemon=True).start()
     threading.Thread(target=keep_alive, daemon=True).start()
     app.run(host="0.0.0.0", port=int(os.getenv("PORT", 10000)))
+
 
 
 
