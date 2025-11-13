@@ -177,10 +177,10 @@ def job_loop():
 
             fetch_jobs(token)
             print("f\n🕓 Sleeping 30 mins before next check.\n")
-            time.sleep(1800)  # 30 mins delay
+            time.sleep(1200)  # 30 mins delay
         except Exception as e:
             print(f"\n⚠️ Loop error: {e}")
-            time.sleep(300)  # wait 5 mins on error before retry
+            time.sleep(180)  # wait 5 mins on error before retry
 
 # === KEEP-ALIVE THREAD (Render idle prevention) ===
 def keep_alive():
@@ -191,7 +191,7 @@ def keep_alive():
         try:
             requests.get(url, timeout=10)
             print(f"\n🌍 Keep-alive ping sent.")
-            offcheck = (f"\n✅ Amazon Job Bot is Offline..\n" "[☕️ Fuel this bot] (https://buymeacoffee.com/ukjobs)")
+            offcheck = (f"\n✅ Amazon Job Bot is running Online..\n" "[☕️ Fuel this bot for running...] (https://buymeacoffee.com/ukjobs)")
             send_telegram_message(offcheck)
         except:
             print(f"\n⚠️ Keep-alive failed.")
@@ -215,6 +215,7 @@ if __name__ == "__main__":
     threading.Thread(target=job_loop, daemon=True).start()
     threading.Thread(target=keep_alive, daemon=True).start()
     app.run(host="0.0.0.0", port=int(os.getenv("PORT", 10000)))
+
 
 
 
