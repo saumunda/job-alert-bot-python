@@ -176,11 +176,11 @@ def job_loop():
                 token = DEFAULT_TOKEN
 
             fetch_jobs(token)
-            print("f\n🕓 Sleeping 90 sec before next check.\n")
-            time.sleep(90)  # 30 mins delay
+            print("f\n🕓 Sleeping 10 sec before next check.\n")
+            time.sleep(10)  # 10 sec delay
         except Exception as e:
             print(f"\n⚠️ Loop error: {e}")
-            time.sleep(60)  # wait 1 min on error before retry
+            time.sleep(5)  # wait 5 sec on error before retry
 
 # === KEEP-ALIVE THREAD (Render idle prevention) ===
 def keep_alive():
@@ -189,11 +189,12 @@ def keep_alive():
         return
     while True:
         try:
-            requests.get(url, timeout=10)
+            requests.get(url, timeout=5)
             print(f"\n🌍 Keep-alive ping sent.")
         except:
             print(f"\n⚠️ Keep-alive failed.")
         time.sleep(60)
+        print(f"\n⚠️ Sleep 60 sec of keep alive.")
 
 # === FLASK ENDPOINTS ===
 @app.route("/")
