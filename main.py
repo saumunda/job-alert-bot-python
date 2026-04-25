@@ -193,8 +193,8 @@ def keep_alive():
             print(f"\n🌍 Keep-alive ping sent.")
         except:
             print(f"\n⚠️ Keep-alive failed.")
-        time.sleep(3600)
-        print(f"\n⚠️ Sleep 3600 sec of keep alive.")
+        time.sleep(300)
+        print(f"\n⚠️ Sleep 5 min of keep alive.")
 
 # === FLASK ENDPOINTS ===
 @app.route("/")
