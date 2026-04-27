@@ -3,7 +3,6 @@ import time
 import random
 import asyncio
 import threading
-import datetime
 import requests
 from flask import Flask
 from playwright.async_api import async_playwright
@@ -12,7 +11,7 @@ from playwright.async_api import async_playwright
 GRAPHQL_URL = "https://qy64m4juabaffl7tjakii4gdoa.appsync-api.eu-west-1.amazonaws.com/graphql"
 
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
-CHAT_IDS = [c.strip() for c in os.getenv("TELEGRAM_CHAT_IDS", "").split(",") if c.strip()]
+CHAT_IDS = [chat.strip() for chat in os.getenv("TELEGRAM_CHAT_IDS", "").split(",") if chat.strip()]
 
 CHECK_INTERVAL_MIN = 4
 CHECK_INTERVAL_MAX = 7
@@ -22,17 +21,7 @@ USER_AGENTS = [
     "Mozilla/5.0 (X11; Linux x86_64) Gecko/20100101 Firefox/132.0",
 ]
 
-# ================= GLOBAL STATE =================
 seen_jobs = set()
-last_run_time = time.time()
-BOT_TIMEOUT = 30
-
-bot_running = False
-restart_timestamps = []
-MAX_RESTARTS = 5
-RESTART_WINDOW = 300  # seconds
-
-lock = threading.Lock()
 app = Flask(__name__)
 
 # ================= TELEGRAM =================
@@ -47,23 +36,6 @@ def send_telegram(msg):
         except Exception as e:
             print("Telegram error:", e)
 
-# ================= HEARTBEAT =================
-def heartbeat():
-    while True:
-        try:
-            status = "RUNNING" if bot_running else "STOPPED"
-            msg = (
-                f"✅ *Bot Status: {status}*\n"
-                f"⏰ {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
-                f"🔁 Restarts: {len(restart_timestamps)}/{MAX_RESTARTS}"
-            )
-            send_telegram(msg)
-            print("📡 Heartbeat sent")
-        except Exception as e:
-            print("Heartbeat error:", e)
-
-        time.sleep(3600)
-
 # ================= TOKEN =================
 async def get_token(browser):
     try:
@@ -73,9 +45,9 @@ async def get_token(browser):
 
         page = await context.new_page()
 
+        # ⚡ Block heavy resources
         await page.route("**/*", lambda route: asyncio.create_task(
-            route.abort() if route.request.resource_type in ["image", "stylesheet", "font"]
-            else route.continue_()
+            route.abort() if route.request.resource_type in ["image", "stylesheet", "font"] else route.continue_()
         ))
 
         await page.goto("https://www.jobsatamazon.co.uk/", timeout=30000)
@@ -120,6 +92,7 @@ def fetch_jobs(token):
         data = res.json()
 
         jobs = data.get("data", {}).get("searchJobCardsByLocation", {}).get("jobCards", [])
+
         print(f"📦 {len(jobs)} jobs")
 
         if not jobs:
@@ -147,93 +120,49 @@ def fetch_jobs(token):
 
 # ================= BOT LOOP =================
 async def bot_loop():
-    global last_run_time, bot_running
-
     async with async_playwright() as p:
         browser = await p.chromium.launch(headless=True)
 
-        print("🚀 BOT STARTED (BULLETPROOF MODE)")
+        print("🚀 BOT STARTED (WEB MODE)")
 
         cycle = 0
-        token = None
 
         while True:
-            try:
-                with lock:
-                    last_run_time = time.time()
-                    bot_running = True
+            start = time.time()
 
-                if cycle % 5 == 0:
-                    token = await get_token(browser)
+            # refresh token every 5 cycles
+            if cycle % 5 == 0:
+                token = await get_token(browser)
+            cycle += 1
 
-                cycle += 1
+            if token:
+                fetch_jobs(token)
+            else:
+                print("⚠️ Token failed")
 
-                if token:
-                    fetch_jobs(token)
-                else:
-                    print("⚠️ Token failed")
+            elapsed = time.time() - start
+            sleep_time = random.uniform(CHECK_INTERVAL_MIN, CHECK_INTERVAL_MAX)
 
-                sleep_time = random.uniform(CHECK_INTERVAL_MIN, CHECK_INTERVAL_MAX)
-                await asyncio.sleep(sleep_time)
+            print(f"⏱ {round(elapsed,2)}s | sleep {round(sleep_time,2)}s")
 
-            except Exception as e:
-                print("🔥 Bot crash:", e)
-                send_telegram(f"🚨 *Bot Crash*\n`{str(e)[:200]}`")
-                await asyncio.sleep(5)
+            await asyncio.sleep(sleep_time)
 
-# ================= SAFE START =================
+# ================= THREAD START =================
 def start_bot():
-    global bot_running
+    asyncio.run(bot_loop())
 
-    with lock:
-        if bot_running:
-            return
-        bot_running = True
-
-    try:
-        asyncio.run(bot_loop())
-    finally:
-        with lock:
-            bot_running = False
-
-# ================= WATCHDOG =================
-def watchdog():
-    global last_run_time, restart_timestamps
-
-    while True:
-        time.sleep(10)
-
-        with lock:
-            idle = time.time() - last_run_time
-
-        if idle > BOT_TIMEOUT:
-            now = time.time()
-            restart_timestamps = [t for t in restart_timestamps if now - t < RESTART_WINDOW]
-
-            if len(restart_timestamps) >= MAX_RESTARTS:
-                send_telegram("🚨 *CRITICAL*\nToo many restarts. Check bot!")
-                continue
-
-            restart_timestamps.append(now)
-
-            send_telegram("🚨 Bot stuck. Restarting...")
-            print("🔄 Restarting bot...")
-
-            threading.Thread(target=start_bot, daemon=True).start()
-
-# ================= FLASK =================
+# ================= FLASK ROUTES =================
 @app.route("/")
 def home():
-    return "✅ Amazon Job Bot Running (Bulletproof Mode)"
+    return "✅ Amazon Job Bot Running (Fast Mode)"
 
 @app.route("/force")
 def force():
-    return "⚡ Bot active in background"
+    return "⚡ Bot is running in background"
 
 # ================= MAIN =================
 if __name__ == "__main__":
     threading.Thread(target=start_bot, daemon=True).start()
-    threading.Thread(target=heartbeat, daemon=True).start()
-    threading.Thread(target=watchdog, daemon=True).start()
 
+    # REQUIRED for Render Web Service
     app.run(host="0.0.0.0", port=int(os.getenv("PORT", 10000)))
