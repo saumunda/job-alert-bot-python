@@ -191,17 +191,24 @@ def keep_alive():
         try:
             requests.get(url, timeout==10)
             print(f"\n🌍 Keep-alive ping sent.")
+            alive = "\n🌍 Keep-alive ping sent."
+            send_telegram_message (alive)
+            return "\n🌍 Keep-alive ping sent."
         except:
             print(f"\n⚠️ Keep-alive failed.")
+            failed = "\n⚠️ Keep-alive failed."
+            send_telegram_message (failed)
+            return "\n⚠️ Keep-alive failed."
         time.sleep(180)
         print(f"\n⚠️ Sleep 5 min of keep alive.")
+        sleep = "\n⚠️ Sleep 5 min of keep alive."
+        send_telegram_message (sleep)
+        return "\n⚠️ Sleep 5 min of keep alive."
 
 # === FLASK ENDPOINTS ===
 @app.route("/")
 def home():
     return "✅ Amazon Job Bot is running online."
-    offcheck = (f"\n✅ Amazon Job Bot is running Online..\n" "[☕️ Fuel this bot for running...] (https://buymeacoffee.com/ukjobs)")
-    send_telegram_message(offcheck)
 
 @app.route("/forcefetch")
 def forcefetch():
@@ -209,6 +216,8 @@ def forcefetch():
     if not token:
         token = "Bearer Status|unauthenticated|Session|exampleToken"
     fetch_jobs(token)
+    offcheck = (f"\n✅ Amazon Job Bot is running Online..\n" "[☕️ Fuel this bot for running...] (https://buymeacoffee.com/ukjobs)")
+    send_telegram_message(offcheck)
     return "\n✅ Manual job fetch completed."
 
 # === START APP ===
