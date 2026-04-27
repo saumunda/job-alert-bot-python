@@ -4,3 +4,4 @@ playwright
 asyncio
 python-telegram-bot
 chromium
+schedule
