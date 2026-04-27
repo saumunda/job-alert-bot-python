@@ -176,11 +176,11 @@ def job_loop():
                 token = DEFAULT_TOKEN
 
             fetch_jobs(token)
-            print("f\n🕓 Sleeping 30 sec before next check.\n")
-            time.sleep(180)  # 30 sec delay
+            print("f\n🕓 Sleeping 1 min before next check.\n")
+            time.sleep(60)  # 1 min delay
         except Exception as e:
             print(f"\n⚠️ Loop error: {e}")
-            time.sleep(180)  # wait 60 sec on error before retry
+            time.sleep(60)  # wait 1 min on error before retry
 
 # === KEEP-ALIVE THREAD (Render idle prevention) ===
 def keep_alive():
@@ -189,26 +189,18 @@ def keep_alive():
         return
     while True:
         try:
-            requests.get(url, timeout==10)
+            requests.get(url, timeout=10)
             print(f"\n🌍 Keep-alive ping sent.")
-            alive = "\n🌍 Keep-alive ping sent."
-            send_telegram_message (alive)
-            return "\n🌍 Keep-alive ping sent."
         except:
             print(f"\n⚠️ Keep-alive failed.")
-            failed = "\n⚠️ Keep-alive failed."
-            send_telegram_message (failed)
-            return "\n⚠️ Keep-alive failed."
         time.sleep(180)
-        print(f"\n⚠️ Sleep 5 min of keep alive.")
-        sleep = "\n⚠️ Sleep 5 min of keep alive."
-        send_telegram_message (sleep)
-        return "\n⚠️ Sleep 5 min of keep alive."
 
 # === FLASK ENDPOINTS ===
 @app.route("/")
 def home():
     return "✅ Amazon Job Bot is running online."
+    offcheck = (f"\n✅ Amazon Job Bot is running Online..\n" "[☕️ Fuel this bot for running...] (https://buymeacoffee.com/ukjobs)")
+    send_telegram_message(offcheck)
 
 @app.route("/forcefetch")
 def forcefetch():
@@ -216,8 +208,6 @@ def forcefetch():
     if not token:
         token = "Bearer Status|unauthenticated|Session|exampleToken"
     fetch_jobs(token)
-    offcheck = (f"\n✅ Amazon Job Bot is running Online..\n" "[☕️ Fuel this bot for running...] (https://buymeacoffee.com/ukjobs)")
-    send_telegram_message(offcheck)
     return "\n✅ Manual job fetch completed."
 
 # === START APP ===
@@ -225,9 +215,3 @@ if __name__ == "__main__":
     threading.Thread(target=job_loop, daemon=True).start()
     threading.Thread(target=keep_alive, daemon=True).start()
     app.run(host="0.0.0.0", port=int(os.getenv("PORT", 10000)))
-
-
-
-
-
-
