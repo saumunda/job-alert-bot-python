@@ -1,5 +1,6 @@
-Flask
+flask
 requests
 playwright
 asyncio
 python-telegram-bot
+chromium
