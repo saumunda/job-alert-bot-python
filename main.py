@@ -1,5 +1,7 @@
 import os
 import time
+import schedule
+import datetime
 import json
 import random
 import threading
@@ -11,6 +13,11 @@ from playwright.async_api import async_playwright
 # === CONFIGURATION ===
 GRAPHQL_URL = "https://qy64m4juabaffl7tjakii4gdoa.appsync-api.eu-west-1.amazonaws.com/graphql"
 JOB_PAGE_URL = "https://www.jobsatamazon.co.uk/app#/jobSearch?query=Warehouse%20Operative&locale=en-GB"
+
+# Mode C settings
+INTERVAL_MINUTES = 3    # every 1 minute
+ACTIVE_START = datetime.time(9, 0)   # 08:00
+ACTIVE_END = datetime.time(12, 0)    # 22:00
 
 # === TELEGRAM SETTINGS (secure from Render env) ===
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
@@ -194,6 +201,26 @@ def keep_alive():
         except:
             print(f"\n⚠️ Keep-alive failed.")
         time.sleep(180)
+
+def run_job():
+    print("🔄 Running job check...")
+    now = datetime.datetime.now().time()
+    print("⏱ Current time:", now)
+    token = get_auth_token()
+    if token:
+        fetch_jobs(token)
+    else:
+        print("⚠️ Token error")
+
+def interval_job():
+        now = datetime.datetime.now().time()
+        print("⏱ Current time:", now)
+        if ACTIVE_START <= now <= ACTIVE_END:
+            run_job()
+
+schedule.every(INTERVAL_MINUTES).minutes.do(interval_job)
+schedule.run_pending()
+time.sleep(1)
 
 # === FLASK ENDPOINTS ===
 @app.route("/")
