@@ -1,14 +1,17 @@
+import os
 import time
 import threading
 import requests
 from playwright.sync_api import sync_playwright
 
 # ================= CONFIG =================
-TELEGRAM_TOKEN = "YOUR_BOT_TOKEN"
-CHAT_IDS = ["YOUR_CHAT_ID"]
+TELEGRAM_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+CHAT_IDS = os.getenv("TELEGRAM_CHAT_IDS", "")
+CHAT_IDS = [chat.strip() for chat in CHAT_IDS.split(",") if chat.strip()]
 
 URLS = [
-    "https://www.amazon.jobs/en-gb/jobs/XXXXX",  # replace
+    "https://qy64m4juabaffl7tjakii4gdoa.appsync-api.eu-west-1.amazonaws.com/graphql",
+    "https://www.jobsatamazon.co.uk/app#/jobSearch?query=Warehouse%20Operative&locale=en-GB" # replace
 ]
 
 CHECK_INTERVAL = 5  # seconds (fast but safe)
