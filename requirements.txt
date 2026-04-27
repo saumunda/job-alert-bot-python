@@ -1,6 +1,6 @@
 flask
 requests
-playwright install
+playwright
 asyncio
 python-telegram-bot
 chromium
