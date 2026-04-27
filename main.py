@@ -1,28 +1,30 @@
 import os
 import time
-import datetime
 import random
-import threading
 import asyncio
+import threading
 import requests
+from flask import Flask
 from playwright.async_api import async_playwright
 
-# === CONFIG ===
+# ================= CONFIG =================
 GRAPHQL_URL = "https://qy64m4juabaffl7tjakii4gdoa.appsync-api.eu-west-1.amazonaws.com/graphql"
 
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 CHAT_IDS = [chat.strip() for chat in os.getenv("TELEGRAM_CHAT_IDS", "").split(",") if chat.strip()]
 
-CHECK_INTERVAL = 5  # ⚡ FAST (5 sec)
+CHECK_INTERVAL_MIN = 4
+CHECK_INTERVAL_MAX = 7
 
 USER_AGENTS = [
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/129.0.0.0 Safari/537.36",
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:132.0) Gecko/20100101 Firefox/132.0",
+    "Mozilla/5.0 (X11; Linux x86_64) Gecko/20100101 Firefox/132.0",
 ]
 
 seen_jobs = set()
+app = Flask(__name__)
 
-# === TELEGRAM ===
+# ================= TELEGRAM =================
 def send_telegram(msg):
     for chat_id in CHAT_IDS:
         try:
@@ -34,7 +36,7 @@ def send_telegram(msg):
         except Exception as e:
             print("Telegram error:", e)
 
-# === GET TOKEN (FAST VERSION) ===
+# ================= TOKEN =================
 async def get_token(browser):
     try:
         context = await browser.new_context(
@@ -43,7 +45,7 @@ async def get_token(browser):
 
         page = await context.new_page()
 
-        # 🚀 Block heavy resources
+        # ⚡ Block heavy resources
         await page.route("**/*", lambda route: asyncio.create_task(
             route.abort() if route.request.resource_type in ["image", "stylesheet", "font"] else route.continue_()
         ))
@@ -62,12 +64,14 @@ async def get_token(browser):
 
     return None
 
-# === FETCH JOBS ===
+# ================= FETCH =================
 def fetch_jobs(token):
     headers = {
         "Authorization": token,
         "Content-Type": "application/json",
-        "User-Agent": random.choice(USER_AGENTS)
+        "User-Agent": random.choice(USER_AGENTS),
+        "Origin": "https://www.jobsatamazon.co.uk",
+        "Referer": "https://www.jobsatamazon.co.uk/"
     }
 
     payload = {
@@ -80,7 +84,7 @@ def fetch_jobs(token):
                 "pageSize": 20
             }
         },
-        "query": "query searchJobCardsByLocation($searchJobRequest: SearchJobRequest!) { searchJobCardsByLocation(searchJobRequest: $searchJobRequest) { jobCards { jobId jobTitle city state totalPayRateMax } } }"
+        "query": "query searchJobCardsByLocation($searchJobRequest: SearchJobRequest!) { searchJobCardsByLocation(searchJobRequest: $searchJobRequest) { jobCards { jobId jobTitle city totalPayRateMax } } }"
     }
 
     try:
@@ -90,6 +94,9 @@ def fetch_jobs(token):
         jobs = data.get("data", {}).get("searchJobCardsByLocation", {}).get("jobCards", [])
 
         print(f"📦 {len(jobs)} jobs")
+
+        if not jobs:
+            print("⚠️ Possible soft block")
 
         for job in jobs:
             job_id = job["jobId"]
@@ -111,17 +118,22 @@ def fetch_jobs(token):
     except Exception as e:
         print("Fetch error:", e)
 
-# === MAIN LOOP ===
-async def main():
+# ================= BOT LOOP =================
+async def bot_loop():
     async with async_playwright() as p:
         browser = await p.chromium.launch(headless=True)
 
-        print("🚀 FAST BOT STARTED")
+        print("🚀 BOT STARTED (WEB MODE)")
+
+        cycle = 0
 
         while True:
             start = time.time()
 
-            token = await get_token(browser)
+            # refresh token every 5 cycles
+            if cycle % 5 == 0:
+                token = await get_token(browser)
+            cycle += 1
 
             if token:
                 fetch_jobs(token)
@@ -129,12 +141,28 @@ async def main():
                 print("⚠️ Token failed")
 
             elapsed = time.time() - start
-            sleep_time = max(1, CHECK_INTERVAL - elapsed)
+            sleep_time = random.uniform(CHECK_INTERVAL_MIN, CHECK_INTERVAL_MAX)
 
-            print(f"⏱ {round(elapsed,2)}s cycle | sleep {round(sleep_time,2)}s")
+            print(f"⏱ {round(elapsed,2)}s | sleep {round(sleep_time,2)}s")
 
             await asyncio.sleep(sleep_time)
 
-# === RUN ===
+# ================= THREAD START =================
+def start_bot():
+    asyncio.run(bot_loop())
+
+# ================= FLASK ROUTES =================
+@app.route("/")
+def home():
+    return "✅ Amazon Job Bot Running (Fast Mode)"
+
+@app.route("/force")
+def force():
+    return "⚡ Bot is running in background"
+
+# ================= MAIN =================
 if __name__ == "__main__":
-    asyncio.run(main())
+    threading.Thread(target=start_bot, daemon=True).start()
+
+    # REQUIRED for Render Web Service
+    app.run(host="0.0.0.0", port=int(os.getenv("PORT", 10000)))
